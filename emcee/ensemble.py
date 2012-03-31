@@ -83,7 +83,8 @@ class EnsembleSampler(Sampler):
         self._chain  = np.empty((self.k, 0, self.dim))
         self._lnprob = np.empty((self.k, 0))
 
-    def sample(self, p0, lnprob0=None, rstate0=None, iterations=1, **kwargs):
+    def sample(self, p0, lnprob0=None, rstate0=None, iterations=1,
+            yield_acc=False, **kwargs):
         """
         Advance the chain iterations steps as an iterator.
 
@@ -151,6 +152,7 @@ class EnsembleSampler(Sampler):
         i0 = self.iterations
         for i in xrange(int(iterations)):
             self.iterations += 1
+            acc_mask = np.zeros(self.k,dtype=bool) # the full acceptance mask
 
             # Loop over the two ensembles, calculating the proposed positions.
             for k, ens in enumerate(self.ensembles):
@@ -158,6 +160,7 @@ class EnsembleSampler(Sampler):
                         self.ensembles[(k+1)%2].propose_position(ens)
                 fullaccept = np.zeros(self.k,dtype=bool)
                 fullaccept[halfk*k:halfk*(k+1)] = accept
+                acc_mask += fullaccept
 
                 # Update the `Ensemble`'s walker positions.
                 if np.any(accept):
@@ -202,6 +205,15 @@ class EnsembleSampler(Sampler):
         for i in range(s):
             t[i] = acor.acor(self.chain[:,:,i].T)[0]
         return t
+
+    def calculate_evidence(self, iterations, nanneal=12):
+        """
+        Calculate the evidence integral. *Note:* `lnpostfn` must take a
+        keyword argument called `beta` (the inverse temperature).
+
+        """
+        betas = np.linspace(0, 1, nanneal)
+
 
 class _function_wrapper(object):
     """
